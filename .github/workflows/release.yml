@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO: cargo
+  # When CARGO is set to CROSS, this is set to `--target matrix.target`.
+  TARGET_FLAGS:
+  # When CARGO is set to CROSS, TARGET_DIR includes matrix.target.
+  TARGET_DIR: ./target
+
+jobs:
+  test:
+    name: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        build:
+#         - stable-amd64
+#         - nightly-amd64
+        - stable-arm
+        include:
+#        - build: stable-amd64
+#          os: ubuntu-20.04
+#          rust: stable
+#        - build: nightly-amd64
+#          os: ubuntu-20.04
+#          rust: nightly
+        - build: stable-arm
+          os: ubuntu-20.04
+          rust: stable
+          target: arm-unknown-linux-gnueabihf
+          artifact_name: home-faerie-heating-manager
+          asset_name: home-faerie-heating-manager_arm
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        profile: minimal
+        override: true
+
+    - name: Use Cross
+      if: matrix.target != ''
+      run: |
+        cargo install cross
+        echo "CARGO=cross" >> $GITHUB_ENV
+        echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
+        echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
+
+    - name: Show command used for Cargo
+      run: |
+        echo "cargo command is: ${{ env.CARGO }}"
+        echo "target flag is: ${{ env.TARGET_FLAGS }}"
+
+    - name: Build
+      run: ${{ env.CARGO }} build --verbose --release ${{ env.TARGET_FLAGS }}
+
+    - name: Upload binaries to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+        asset_name: ${{ matrix.asset_name }}
+        tag: ${{ github.ref }}
