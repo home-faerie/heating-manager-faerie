@@ -6,3 +6,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+rumqttc = "0.8.0"
+sqlx = { version = "0.5", features = [ "decimal", "postgres", "runtime-tokio-rustls" ] }
+tokio = { version = "1", features = ["full"] }
+rand = "0.8.3"
+main_error = "0.1.1"
+rust_decimal = "1.16"
