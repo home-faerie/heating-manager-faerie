@@ -34,8 +34,8 @@ jobs:
           os: ubuntu-20.04
           rust: stable
           target: arm-unknown-linux-gnueabihf
-          artifact_name: home-faerie-heating-manager
-          asset_name: home-faerie-heating-manager_arm
+          artifact_name: heating-manager-faerie
+          asset_name: heating-manager-faerie_arm
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v2
