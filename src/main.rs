@@ -1,9 +1,10 @@
+use log::{error, info, warn};
 use main_error::MainError;
 use rand::{distributions::Alphanumeric, Rng};
 use rumqttc::{AsyncClient, ClientError, MqttOptions, QoS};
 use rust_decimal::prelude::*;
 use sqlx::postgres::PgPool;
-use std::time::Duration;
+use std::io::Write;
 
 #[derive(sqlx::FromRow, Debug)]
 struct Row {
@@ -27,18 +28,37 @@ async fn msg_heaters(client: AsyncClient, status: bool) -> Result<(), ClientErro
             .await
             .unwrap();
     }
-    tokio::time::sleep(Duration::from_secs(1)).await;
-
     client.cancel().await
 }
 
 #[tokio::main]
 async fn main() -> Result<(), MainError> {
+    match std::env::var("RUST_LOG_STYLE").as_deref() {
+        Ok(s) if s == "SYSTEMD" => env_logger::builder()
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "<{}>{}: {}",
+                    match record.level() {
+                        log::Level::Error => 3,
+                        log::Level::Warn => 4,
+                        log::Level::Info => 6,
+                        log::Level::Debug => 7,
+                        log::Level::Trace => 7,
+                    },
+                    record.target(),
+                    record.args()
+                )
+            })
+            .init(),
+        _ => env_logger::init(),
+    };
+
     let pgsql_url = match std::env::var("POSTGRESQL_URL") {
         Ok(val) => val,
         Err(_e) => {
             let v = "postgresql:/sensors";
-            println!("POSTGRESQL_URL not defined, using default: '{}", v);
+            warn!("POSTGRESQL_URL not defined, using default: '{}", v);
             v.to_string()
         }
     };
@@ -46,7 +66,7 @@ async fn main() -> Result<(), MainError> {
         Ok(val) => val,
         Err(_e) => {
             let v = "localhost";
-            println!("MQTT_URL not defined, using default: '{}'", v);
+            warn!("MQTT_URL not defined, using default: '{}'", v);
             v.to_string()
         }
     };
@@ -54,7 +74,7 @@ async fn main() -> Result<(), MainError> {
         Ok(val) => val.parse().unwrap_or(1883),
         Err(_e) => {
             let v = 1883;
-            println!("MQTT_PORT not defined, using default: '{}'", v);
+            warn!("MQTT_PORT not defined, using default: '{}'", v);
             v
         }
     };
@@ -64,10 +84,16 @@ async fn main() -> Result<(), MainError> {
         .map(char::from)
         .collect();
 
-    let pool = PgPool::connect(&pgsql_url).await?;
+    let pool = match PgPool::connect(&pgsql_url).await {
+        Ok(r) => r,
+        Err(e) => {
+            error!("Unable to connect to database: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     // Look up current price
-    let price_lookup = sqlx::query_as::<_, Row>(
+    let result = sqlx::query_as::<_, Row>(
         "
         SELECT
             price * 1.2 AS price
@@ -76,15 +102,20 @@ async fn main() -> Result<(), MainError> {
     )
     .bind("ee".to_string())
     .fetch_one(&pool)
-    .await
-    .unwrap();
+    .await;
 
-    let price = price_lookup.price;
+    let price = match result {
+        Ok(row) => row.price,
+        Err(e) => {
+            error!("Unable to look up price: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     // Fancy AI-based (hah??) decision tree
     let status: bool = !(price > rust_decimal::Decimal::from_str("100.0").unwrap());
 
-    println!("Current price: {:?}, heater status: {:?}", price, status);
+    info!("Current price: {:?}, heater status: {:?}", price, status);
 
     let mut mqttoptions = MqttOptions::new(
         ["home-faerie", "heating-manager", &s].join("-"),
@@ -102,7 +133,7 @@ async fn main() -> Result<(), MainError> {
     loop {
         let event = eventloop.poll().await;
         if event.is_err() {
-            println!("{:?}", event);
+            error!("{:?}", event);
             break;
         }
     }
