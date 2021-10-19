@@ -82,11 +82,7 @@ async fn main() -> Result<(), MainError> {
     let price = price_lookup.price;
 
     // Fancy AI-based (hah??) decision tree
-    let status: bool = if price > rust_decimal::Decimal::from_str("100.0").unwrap() {
-        false
-    } else {
-        true
-    };
+    let status: bool = !(price > rust_decimal::Decimal::from_str("100.0").unwrap());
 
     println!("Current price: {:?}, heater status: {:?}", price, status);
 
