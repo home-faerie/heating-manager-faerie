@@ -1,6 +1,6 @@
 use main_error::MainError;
 use rand::{distributions::Alphanumeric, Rng};
-use rumqttc::{AsyncClient, ClientError, ConnectionError, Event, MqttOptions, Packet, QoS};
+use rumqttc::{AsyncClient, ClientError, MqttOptions, QoS};
 use rust_decimal::prelude::*;
 use sqlx::postgres::PgPool;
 use std::time::Duration;
@@ -27,7 +27,6 @@ async fn msg_heaters(client: AsyncClient, status: bool) -> Result<(), ClientErro
             .await
             .unwrap();
     }
-    //
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     client.cancel().await
@@ -96,14 +95,12 @@ async fn main() -> Result<(), MainError> {
         mqtt_url,
         mqtt_port,
     );
-    mqttoptions.set_keep_alive(5);
     mqttoptions.set_max_packet_size(512 * 1024, 512 * 1024);
 
     let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
 
     tokio::task::spawn(async move {
         msg_heaters(client, status).await.unwrap();
-        tokio::time::sleep(Duration::from_secs(2)).await;
     });
 
     loop {
@@ -112,7 +109,6 @@ async fn main() -> Result<(), MainError> {
             println!("{:?}", event);
             break;
         }
-        println!("{:?}", event.unwrap());
     }
 
     Ok(())
