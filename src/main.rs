@@ -1,4 +1,4 @@
-use log::{error, info, warn};
+use log::{debug, error, info, trace, warn};
 use main_error::MainError;
 use rand::{distributions::Alphanumeric, Rng};
 use rumqttc::{AsyncClient, ClientError, MqttOptions, QoS};
@@ -132,10 +132,19 @@ async fn main() -> Result<(), MainError> {
 
     loop {
         let event = eventloop.poll().await;
-        if event.is_err() {
-            error!("{:?}", event);
-            break;
-        }
+        match event {
+            Ok(e) => {
+                trace!("Received event: {:?}", e);
+            },
+            Err(rumqttc::ConnectionError::Cancel) => {
+                debug!("Received Cancel Event, exiting...");
+                break;
+            },
+            Err(_) => {
+                error!("Error: {:?}", event);
+                break;
+            }
+        };
     }
 
     Ok(())
