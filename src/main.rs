@@ -28,6 +28,11 @@ async fn msg_heaters(client: AsyncClient, status: bool) -> Result<(), ClientErro
             .await
             .unwrap();
     }
+
+    // Wait for messages to be sent out...
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    // ...then send exit/cancel signal.
     client.cancel().await
 }
 
